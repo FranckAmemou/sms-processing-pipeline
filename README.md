@@ -26,42 +26,43 @@ pip install -r requirements.txt
 aws configure
 
 
-## Votre README.md final :
-
-```markdown
-# 🚀 Pipeline de Traitement SMS Bancaires
-
-## 📁 Structure du Projet
+## 📁 Structure du Projet avec Explications
 
 ```plaintext
 sms-processing-pipeline/
-├── run_pipeline.py
-├── requirements.txt
-├── src/
-│   ├── main.py
-│   ├── classifiers/
-│   │   ├── sms_classifier.py
-│   │   ├── label_classifier.py
-│   │   └── account_classifier.py
-│   ├── config/
-│   │   ├── settings.py
-│   │   └── services.py
-│   ├── core/
-│   │   ├── s3_client.py
-│   │   ├── text_normalizer.py
-│   │   └── currency_converter.py
-│   ├── extractors/
-│   │   ├── amount_extractor.py
-│   │   ├── date_extractor.py
-│   │   ├── balance_extractor.py
-│   │   ├── counterparty_extractor.py
-│   │   ├── reference_extractor.py
-│   │   ├── tax_extractor.py
-│   │   └── currency_extractor.py
-│   ├── processors/
-│   │   ├── sms_processor.py
-│   │   └── multi_operation_processor.py
-│   └── utils/
-│       ├── logger.py
-│       ├── helpers.py
+├── run_pipeline.py              #  Script principal pour lancer le pipeline
+├── requirements.txt             #  Liste des dépendances Python nécessaires
+├── src/                         # Code source principal du projet
+│   ├── main.py                  #  Point d'entrée principal, orchestre le traitement
+│   ├── classifiers/             #  Modules de classification des SMS
+│   │   ├── sms_classifier.py    #  Classifie CREDIT vs DEBIT selon le contenu
+│   │   ├── label_classifier.py  #  Attribue des étiquettes aux transactions
+│   │   └── account_classifier.py #  Identifie le type de compte concerné
+│   ├── config/                  # Fichiers de configuration
+│   │   ├── settings.py          # Paramètres AWS S3 et configuration globale
+│   │   └── services.py          #  Liste des services financiers autorisés
+│   ├── core/                    #  Composants fondamentaux
+│   │   ├── s3_client.py         #  Client pour lire les données depuis AWS S3
+│   │   ├── text_normalizer.py   #  Nettoie et normalise le texte des SMS
+│   │   └── currency_converter.py #  Convertit entre XOF, USD, EUR
+│   ├── extractors/              #  Modules d'extraction de données
+│   │   ├── amount_extractor.py  #  Extrait les montants des transactions
+│   │   ├── date_extractor.py    #  Extrait les dates d'opération
+│   │   ├── balance_extractor.py #  Extrait les soldes après transaction
+│   │   ├── counterparty_extractor.py #  Identifie la contrepartie (nom/téléphone)
+│   │   ├── reference_extractor.py #  Extrait les références de transaction
+│   │   ├── tax_extractor.py     #  Extrait les montants de frais et taxes
+│   │   └── currency_extractor.py #  Identifie la devise de la transaction
+│   ├── processors/              #  Modules de traitement métier
+│   │   ├── sms_processor.py     #  Processeur principal pour un seul SMS
+│   │   └── multi_operation_processor.py #  Gère les mini-relevés multi-opérations
+│   └── utils/                   #  Utilitaires et helpers
+│       ├── logger.py            #  Configuration centralisée du logging
+│       ├── helpers.py           #  Fonctions utilitaires réutilisables
+│       └── constants.py         #  Constantes et configurations globales
+├── tests/                       #  Tests automatisés
+│   ├── test_processors.py       #  Tests des processeurs de SMS
+│   ├── test_extractors.py       #  Tests des extracteurs de données
+│   ├── test_classifiers.py      #  Tests des classificateurs
+│   └── test_integration.py      #  Tests d'intégration complets
 ```

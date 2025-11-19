@@ -1,145 +1,147 @@
 import re
-from utils.helpers import parse_currency_amount
+from src.core.parsers import parse_currency_amount
+from src.utils.logger import get_logger
 
-class TaxExtractor:
-    
-    def extract(self, normalized_body):
-        """
-        Extrait les taxes et frais des transactions - VERSION COMPLÈTEMENT CORRIGÉE
-        """
-        total_fees = 0.0
-        normalized_upper = normalized_body.upper()
+logger = get_logger(__name__)
 
-        # Patterns SPÉCIFIQUES et UNIQUES
-        frais_patterns = [
-            # Pattern pour Wave "Frais: 1.100F"
-            r'FRAIS:\s*(\d+\.\d+)F',
-            r'FRAIS\s*:\s*(\d+\.\d+)F',
-            r'FRAIS\s+(\d+\.\d+)F',
-            r'PENALITE:\s*([\d\s]+)\s*FCFA',
-            r'PENALITES:\s*([\d\s]+)\s*FCFA',
-            r'PENALITE\s*:\s*([\d\s]+)\s*FCFA',
-            # Pattern pour frais de transfert international
-            r'FRAIS=(\d+)\s*FCFA',
-            r'FRAIS\s*=\s*(\d+)\s*FCFA',
-            r'FRAIS\s*:\s*(\d+)\s*FCFA',
-            r'COMMISSION DE LA TRANSACTION\s+([\d\s]+)\s*FCFA',
-            r'COMMISSION\s+([\d\s]+)\s*FCFA',
-            r'COMMISSION\s*:\s*([\d\s]+)\s*FCFA',
-            r'TIMBRE:\s*([\d\s]+)\s*FCFA',
-            r'TIMBRE\s*:\s*([\d\s]+)\s*FCFA',
-            r'TIMBRE\s+([\d\s]+)\s*FCFA',
+def extract_tax_and_fee(normalized_body):
+    """
+    Extrait les taxes et frais des transactions - VERSION PURIFIÉE
+    """
+    total_fees = 0.0
+    normalized_upper = normalized_body.upper()
 
-            r'FRAIS:\s*([\d\s]+)\s*FCFA',
-            r'FRAIS\s*:\s*([\d\s]+)\s*FCFA',
-            r'FEE:\s*([\d\s]+)\s*FCFA',
-            r'LE COUT DE LA TRANSACTION\s+([\d\s,]+)\s*FCFA',
-            r'COUT DE LA TRANSACTION\s+([\d\s,]+)\s*FCFA',
-            r'FRAIS DE TRANSACTION\s+([\d\s,]+)\s*FCFA',
-            r'COUT\s+([\d\s,]+)\s*FCFA',
-            # Format "Cout de la transaction: 1547,00 FCFA"
-            r'COUT DE LA TRANSACTION:\s*([\d\s,]+)\s*FCFA',
-            r'COUT DE LA TRANSACTION\s*:\s*([\d\s,]+)\s*FCFA',
-            r'COUT\s+DE\s+LA\s+TRANSACTION:\s*([\d\s,]+)\s*FCFA',
-            r'COUT\s+TRANSACTION:\s*([\d\s,]+)\s*FCFA',
-            r'COUT:\s*([\d\s,]+)\s*FCFA',
+    is_pret_detaille = (
+        "PRET ACCEPTE" in normalized_upper and
+        "FRAIS" in normalized_upper and
+        "TAXE" in normalized_upper and
+        "MONTANT NET RECU" in normalized_upper
+    )
 
-            r'FRAIS\s+(\d+)\s*FCFA',
-            r'FRAIS\s+([\d\s,]+)\s*FCFA',
-            r'FRAIS:\s*(\d+)\s*FCFA',
-            r'FRAIS\s*:\s*(\d+)\s*FCFA',
-            r'FRAIS:(\d+)F',           # "Frais:500F"
-            r'FRAIS:\s*(\d+)\s*F',     # "Frais: 500 F"
-            r'FRAIS:(\d+)FCFA',        # "Frais:500FCFA"
-            r'FRAIS:\s*(\d+)\s*FCFA',
-            # Pattern pour "Frais: 100 FCFA" (le plus spécifique)
-            r'FRAIS:\s*(\d+)\s*FCFA',
-            r'FRAIS\s*:\s*(\d+)\s*FCFA',
-            r'FRAIS\s+(\d+)\s*FCFA',
+    if is_pret_detaille:
 
-            # Patterns généraux (moins spécifiques)
-            r'FRAIS:\s*([\d\s,]+)\s*FCFA',
-            r'FRAIS\s*:\s*([\d\s,]+)\s*FCFA',
-            r'FEES:\s*([\d\s,]+)\s*FCFA',
-        ]
 
-        # Utiliser une variable pour suivre le premier match
-        frais_trouves = False
+        # STRATÉGIE 1: Extraction dynamique pour prêts (additionne TOUS les frais/taxes)
+        frais_taxes_patterns = [
+            # Pattern pour frais de mise en place (capture n'importe quel montant)
+            r'FRAIS[^:]*:\s*([\d\s,]+)\s*FCFA',
+            r'FRAIS[^:]*:\s*([\d\s,]+)\s*F',
 
-        for pattern in frais_patterns:
-            matches = re.findall(pattern, normalized_upper)
-            if matches:
-                # Prendre seulement le PREMIER match
-                for match in matches:
-                    if not frais_trouves:  # Si aucun frais n'a été trouvé encore
-                        frais_amount = parse_currency_amount(match)
-                        if frais_amount and frais_amount > 0:
-                            total_fees = frais_amount   # pas additionner
-                            frais_trouves = True
-                            break  # Sortir de la boucle interne
-                if frais_trouves:
-                    break  # Sortir de la boucle externe
-
-        # Vérifier les doublons dans d'autres fonctions
-        if total_fees > 0:
-            # Compter combien de fois "FRAIS" apparaît
-            count_frais = normalized_upper.count('FRAIS')
-            count_fees = normalized_upper.count('FEES')
-
-            # Si plusieurs occurrences, prendre la première mention
-            if count_frais > 1:
-                # Extraire tous les montants après "FRAIS"
-                all_frais_matches = re.findall(r'FRAIS[:\s]*([\d\s,]+)\s*FCFA', normalized_upper)
-                if all_frais_matches:
-                    # Prendre le premier
-                    first_frais = parse_currency_amount(all_frais_matches[0])
-                    if first_frais and first_frais > 0:
-                        total_fees = first_frais
-
-        return total_fees if total_fees > 0 else None
-
-    def extract_tax_only(self, normalized_body):
-        """
-        Extrait spécifiquement les taxes (distinctes des frais)
-        """
-        normalized_upper = normalized_body.upper()
-        tax_patterns = [
-            r'TAXE:\s*([\d\s,]+)\s*FCFA',
-            r'TAXES:\s*([\d\s,]+)\s*FCFA',
+            # Pattern pour taxe sur frais (capture n'importe quel montant)
+            r'\+\s*TAXE\s*:\s*([\d\s,]+)\s*FCFA',
             r'TAXE\s*:\s*([\d\s,]+)\s*FCFA',
-            r'TAX\s*:\s*([\d\s,]+)\s*FCFA',
-            r'TVA:\s*([\d\s,]+)\s*FCFA',
-            r'TIMBRE:\s*([\d\s,]+)\s*FCFA',
+            r'TAXE\s*:\s*([\d\s,]+)\s*F',
+
+            # Pattern pour taxe sur intérêts (capture n'importe quel montant)
+            r'INTERETS[^:]*:\s*[\d\s,]+\.\s*TAXE:\s*([\d\s,]+)',
+            r'INTERETS[^:]*:\s*[\d\s,]+\s*TAXE:\s*([\d\s,]+)',
         ]
 
-        for pattern in tax_patterns:
+        found_amounts = []
+        for pattern in frais_taxes_patterns:
             matches = re.findall(pattern, normalized_upper)
             if matches:
                 for match in matches:
-                    tax_amount = parse_currency_amount(match)
-                    if tax_amount and tax_amount > 0:
-                        return tax_amount
+                    amount = parse_currency_amount(match)
+                    if amount and amount > 0 and amount not in found_amounts:
+                        found_amounts.append(amount)
+                        total_fees += amount
 
-        return None
 
-    def extract_commission_only(self, normalized_body):
-        """
-        Extrait spécifiquement les commissions
-        """
-        normalized_upper = normalized_body.upper()
-        commission_patterns = [
-            r'COMMISSION:\s*([\d\s,]+)\s*FCFA',
-            r'COMMISSION\s*:\s*([\d\s,]+)\s*FCFA',
-            r'COMMISSION\s+([\d\s,]+)\s*FCFA',
-            r'COMM\.:\s*([\d\s,]+)\s*FCFA',
-        ]
+        # Si on a trouvé des frais pour le prêt, on retourne directement
+        if total_fees > 0:
+            return total_fees
 
-        for pattern in commission_patterns:
-            matches = re.findall(pattern, normalized_upper)
-            if matches:
-                for match in matches:
-                    commission_amount = parse_currency_amount(match)
-                    if commission_amount and commission_amount > 0:
-                        return commission_amount
 
-        return None
+
+    # Patterns SPÉCIFIQUES et UNIQUES (EXISTANTS)
+    frais_patterns = [
+        # Pattern pour Wave "Frais: 1.100F"
+        r'FRAIS:\s*(\d+\.\d+)F',
+        r'FRAIS\s*:\s*(\d+\.\d+)F',
+        r'FRAIS\s+(\d+\.\d+)F',
+        r'PENALITE:\s*([\d\s]+)\s*FCFA',
+        r'PENALITES:\s*([\d\s]+)\s*FCFA',
+        r'PENALITE\s*:\s*([\d\s]+)\s*FCFA',
+        # Pattern pour frais de transfert international
+        r'FRAIS=(\d+)\s*FCFA',
+        r'FRAIS\s*=\s*(\d+)\s*FCFA',
+        r'FRAIS\s*:\s*(\d+)\s*FCFA',
+        r'COMMISSION DE LA TRANSACTION\s+([\d\s]+)\s*FCFA',
+        r'COMMISSION\s+([\d\s]+)\s*FCFA',
+        r'COMMISSION\s*:\s*([\d\s]+)\s*FCFA',
+        r'TIMBRE:\s*([\d\s]+)\s*FCFA',
+        r'TIMBRE\s*:\s*([\d\s]+)\s*FCFA',
+        r'TIMBRE\s+([\d\s]+)\s*FCFA',
+
+        r'FRAIS:\s*([\d\s]+)\s*FCFA',
+        r'FRAIS\s*:\s*([\d\s]+)\s*FCFA',
+        r'FEE:\s*([\d\s]+)\s*FCFA',
+        r'LE COUT DE LA TRANSACTION\s+([\d\s,]+)\s*FCFA',
+        r'COUT DE LA TRANSACTION\s+([\d\s,]+)\s*FCFA',
+        r'FRAIS DE TRANSACTION\s+([\d\s,]+)\s*FCFA',
+        r'COUT\s+([\d\s,]+)\s*FCFA',
+        # Format "Cout de la transaction: 1547,00 FCFA"
+        r'COUT DE LA TRANSACTION:\s*([\d\s,]+)\s*FCFA',
+        r'COUT DE LA TRANSACTION\s*:\s*([\d\s,]+)\s*FCFA',
+        r'COUT\s+DE\s+LA\s+TRANSACTION:\s*([\d\s,]+)\s*FCFA',
+        r'COUT\s+TRANSACTION:\s*([\d\s,]+)\s*FCFA',
+        r'COUT:\s*([\d\s,]+)\s*FCFA',
+
+        r'FRAIS\s+(\d+)\s*FCFA',
+        r'FRAIS\s+([\d\s,]+)\s*FCFA',
+        r'FRAIS:\s*(\d+)\s*FCFA',
+        r'FRAIS\s*:\s*(\d+)\s*FCFA',
+        r'FRAIS:(\d+)F',           # "Frais:500F"
+        r'FRAIS:\s*(\d+)\s*F',     # "Frais: 500 F"
+        r'FRAIS:(\d+)FCFA',        # "Frais:500FCFA"
+        r'FRAIS:\s*(\d+)\s*FCFA',
+        # Pattern pour "Frais: 100 FCFA" (le plus spécifique)
+        r'FRAIS:\s*(\d+)\s*FCFA',
+        r'FRAIS\s*:\s*(\d+)\s*FCFA',
+        r'FRAIS\s+(\d+)\s*FCFA',
+
+        # Patterns généraux (moins spécifiques)
+        r'FRAIS:\s*([\d\s,]+)\s*FCFA',
+        r'FRAIS\s*:\s*([\d\s,]+)\s*FCFA',
+        r'FEES:\s*([\d\s,]+)\s*FCFA',
+    ]
+
+    # Utiliser une variable pour suivre le premier match
+    frais_trouves = False
+
+    for pattern in frais_patterns:
+        matches = re.findall(pattern, normalized_upper)
+        if matches:
+            # Prendre seulement le PREMIER match
+            for match in matches:
+                if not frais_trouves:
+                    frais_amount = parse_currency_amount(match)
+                    if frais_amount and frais_amount > 0:
+                        total_fees = frais_amount
+                        frais_trouves = True
+
+                        break
+            if frais_trouves:
+                break
+
+    # Vérifier les doublons dans d'autres fonctions
+    if total_fees > 0:
+        # Compter combien de fois "FRAIS" apparaît
+        count_frais = normalized_upper.count('FRAIS')
+        count_fees = normalized_upper.count('FEES')
+
+        # Si plusieurs occurrences, prendre la première mention
+        if count_frais > 1:
+            # Extraire tous les montants après "FRAIS"
+            all_frais_matches = re.findall(r'FRAIS[:\s]*([\d\s,]+)\s*FCFA', normalized_upper)
+            if all_frais_matches:
+                # Prendre le premier
+                first_frais = parse_currency_amount(all_frais_matches[0])
+                if first_frais and first_frais > 0:
+                    total_fees = first_frais
+
+
+    return total_fees if total_fees > 0 else None
+
+  

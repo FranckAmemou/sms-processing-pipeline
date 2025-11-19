@@ -45,6 +45,9 @@ sms-processing-pipeline/
 │   │   ├── s3_client.py         #  Client pour lire les données depuis AWS S3
 │   │   ├── text_normalizer.py   #  Nettoie et normalise le texte des SMS
 │   │   └── currency_converter.py #  Convertit entre XOF, USD, EUR
+│   │   ├── parsers.py            #  Nettoie et normalise les nombre et les dates
+│   │   ├── validators.py
+│   │   └── extractors_base.py
 │   ├── extractors/              #  Modules d'extraction de données
 │   │   ├── amount_extractor.py  #  Extrait les montants des transactions
 │   │   ├── date_extractor.py    #  Extrait les dates d'opération
@@ -59,10 +62,5 @@ sms-processing-pipeline/
 │   └── utils/                   #  Utilitaires et helpers
 │       ├── logger.py            #  Configuration centralisée du logging
 │       ├── helpers.py           #  Fonctions utilitaires réutilisables
-│       └── constants.py         #  Constantes et configurations globales
-├── tests/                       #  Tests automatisés
-│   ├── test_processors.py       #  Tests des processeurs de SMS
-│   ├── test_extractors.py       #  Tests des extracteurs de données
-│   ├── test_classifiers.py      #  Tests des classificateurs
-│   └── test_integration.py      #  Tests d'intégration complets
+
 ```

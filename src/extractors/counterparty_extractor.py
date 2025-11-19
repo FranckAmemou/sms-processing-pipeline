@@ -107,7 +107,8 @@ def extract_counterparty_info(normalized_body, transaction_type):
     if any(word in normalized_body.upper() for word in ['ACHAT','PAYE',"L'ACHAT"]):
         if any(action in normalized_body.upper() for action in ['GO', 'MO', 'DATA', 'INTERNET','FORFAIT INTERNET', 'FORFAIT DATA', 'ACHAT FORFAIT', 'PACK INTERNET']):
             return None, None
-
+    if "CREDITED" in normalized_upper or "VERSEMENT" in normalized_upper:
+        return None, None
     # ==========================================================================
     # EXTRACTION PAR PATTERNS
 

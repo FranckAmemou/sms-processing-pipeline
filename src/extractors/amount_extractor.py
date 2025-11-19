@@ -6,6 +6,9 @@ from core.parsers import parse_currency_amount
 def extract_amount(normalized_body):
     """Extrait le montant de la transaction - VERSION COMPLÈTE ET FONCTIONNELLE"""
     patterns = [
+        r'XOF\s+([\d\.,]+)\s+D[ÉE]BIT',
+        r'XOF\s+([\d\.,]+)\s+Debit',
+        r'XOF\s+(\d{1,3}(?:,\d{3})*(?:\.\d{2})?)\s+',
                 # Pattern pour "jusqu'à 300.000 F"
         r'JUSQU.A\s+([\d\s.,]+)\s*F',
         r'JUSQU.A\s+([\d\s.,]+)\s*FCFA',

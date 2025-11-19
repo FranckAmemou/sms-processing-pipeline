@@ -28,7 +28,7 @@ IGNORE_KEYWORDS = [
     'belles fetes','confirmez le paiement','DEVINETTE','TRANSPORT EN COMMUN','LA COMPOSITION','QUIPUX LE','Le saviez-vous ',
     'de gigas!','Infos sous comptes','Le montant recharge est de','EST PRÊT POUR LE RETRAIT',
     'La HomeBox','PARTAGE AVEC MTN','Transférez gratuitement','Avec QUIZ REVISION','INFOS BRVM','A ne pas rater!',
-    'jours de bonheur','Weekend surprise','fun'
+    'jours de bonheur','Weekend surprise','fun','votre identification a été validée','Félicitations'
 ]
 
 # Senders à toujours ignorer

@@ -72,7 +72,11 @@ def extract_counterparty_info(normalized_body, transaction_type):
         return "CISSERVICE", None
     if "WAVE" in normalized_body and "CORIS BANK" in normalized_body and "VERS VOTRE COMPTE WAVE" in normalized_body:
         return "CORIS BANK", None
-
+    #  Détection des retraits coffre vers carte
+    if ("VOUS AVEZ RETIRE" in normalized_upper and 
+        "VOTRE COFFRE" in normalized_upper and 
+        ("CARTE PHYSIQUE" in normalized_upper or "CARTE VIRTUELLE" in normalized_upper)):
+        return None, None
     # Alertes de prêt avec pénalités
     is_loan_penalty_alert = (
         'pret' in normalized_upper and

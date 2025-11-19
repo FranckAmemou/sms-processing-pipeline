@@ -1,13 +1,16 @@
+"""
+Processeur pour les SMS contenant plusieurs opérations (mini-relevés)
+"""
+
 import re
+from core.parsers import parse_currency_amount, normalize_date
 from utils.logger import setup_logger
-import pandas as pd
-from core.text_normalizer import normalize_sms
-from core.parsers import parse_currency_amount
-from sms_processor import create_transaction_record
-from utils.helpers import extract_client_id, extract_device_id
+
+logger = setup_logger(__name__)
 
 def is_multi_operation_sms(normalized_body):
     """Détecte si le SMS contient plusieurs opérations - VERSION ÉTENDUE"""
+    
     multi_op_indicators = [
         # Pattern pour "COMPTE XXXX EN FCFA : date1 -montant1 description1 date2 -montant2 description2"
         r'COMPTE\s+\d+.*EN FCFA\s*:.*\d{1,2}/\d{1,2}\s+-\d+',
@@ -15,13 +18,13 @@ def is_multi_operation_sms(normalized_body):
         # Pattern pour plusieurs opérations consécutives
         r'(\d{1,2}/\d{1,2}\s+-\d+\s+[A-Z][^\.]*){2,}',
 
-        #  Patterns pour mini-relevés (FORMATS SOCIÉTÉ GÉNÉRALE)
+        # Patterns pour mini-relevés (FORMATS SOCIÉTÉ GÉNÉRALE)
         r'MINI-RELEVE COMPTE.*\d{1,3}\.\d{3} XOF',
         r'MINI RELEVE COMPTE.*\d{1,3}\.\d{3} XOF',
         r'MINI-RELEVE COMPTE',
         r'MINI RELEVE COMPTE',
 
-        #  Pattern spécifique pour "MINI RELEVE ARRETE DE CPTE AU"
+        # Pattern spécifique pour "MINI RELEVE ARRETE DE CPTE AU"
         r'MINI RELEVE ARRETE DE CPTE AU',
         r'MINI-RELEVE ARRETE DE CPTE AU',
         r'MINI RELEVE.*ARRETE DE CPTE',
@@ -31,62 +34,34 @@ def is_multi_operation_sms(normalized_body):
         r'ARRETE DE CPTE AU.*\d{2}/\d{2}/\d{4}.*XOF.*ARRETE DE CPTE AU',
         r'(ARRETE DE CPTE AU[^.]*\.){2,}',
 
-        #  Pattern pour détecter plusieurs dates avec montants XOF
+        # Pattern pour détecter plusieurs dates avec montants XOF
         r'\d{2}/\d{2}/\d{4},-?\d+XOF.*\d{2}/\d{2}/\d{4},-?\d+XOF',
 
-        #  Pattern pour le format mixte avec VIREMENT RECU et autres opérations
+        # Pattern pour le format mixte avec VIREMENT RECU et autres opérations
         r'MINI RELEVE.*VIREMENT RECU DE.*\d{2}/\d{2}/\d{4},[+-]\d+XOF',
         r'MINI RELEVE.*SGCNCT.*\d{2}/\d{2}/\d{4},[+-]\d+XOF',
         r'MINI RELEVE.*ARRETE DE CPTE AU.*\d{2}/\d{2}/\d{4},[+-]\d+XOF',
 
-        #  Pattern général pour mini-relevés avec opérations variées
+        # Pattern général pour mini-relevés avec opérations variées
         r'(?:[A-Z][A-Z0-9\s]+,)?\d{2}/\d{2}/\d{4},[+-]\d+XOF\.\s*(?:[A-Z][A-Z0-9\s]+,)?\d{2}/\d{2}/\d{4},[+-]\d+XOF'
     ]
 
     return any(re.search(pattern, normalized_body, re.IGNORECASE) for pattern in multi_op_indicators)
-def process_multi_operation_sms(row, normalized_body, original_body,s3_key, s3_bucket):
-    """Traite un SMS contenant plusieurs opérations"""
-    operations = extract_multi_operation_details(normalized_body)
-    transactions = []
 
-    for op in operations:
-        # Déterminer le type de message basé sur le montant
-        if op['amount'] > 0:
-            tx_type = 'CREDIT'
-        else:
-            tx_type = 'DEBIT'
-
-        transaction = create_transaction_record(
-            row, normalized_body,
-            tx_type,
-            None, None,
-            op['amount'],
-            op['label'],
-            None,
-            'XOF',
-            original_body,  # ↑ Toujours passé mais non utilisé
-            operation_date=op['date'],
-            s3_key=s3_key,  # ← Ajouter ces paramètres
-            s3_bucket=s3_bucket
-        )
-        transactions.append(transaction)
-
-    return transactions
 def extract_multi_operation_details(normalized_body):
     """Extrait les détails des SMS multi-opérations - VERSION COMPLÈTE OPTIMISÉE"""
 
     operations = []
-    # print(f"[DEBUG] Début extraction multi-opérations: {normalized_body}")
+    logger.debug(f"Début extraction multi-opérations: {normalized_body[:100]}...")
 
-    #  1. DÉTECTION FORMAT MIXTE AVEC DESCRIPTIONS DÉTAILLÉES
+    # 1. DÉTECTION FORMAT MIXTE AVEC DESCRIPTIONS DÉTAILLÉES
     if "MINI RELEVE" in normalized_body:
-
 
         # Pattern principal pour extraire: [DESCRIPTION],[DATE],[+/-MONTANT]XOF
         pattern = r'([A-Z][A-Z0-9\s\-\/]+),(\d{2}/\d{2}/\d{4}),([+-]?\d+)XOF'
         matches = re.findall(pattern, normalized_body)
 
-        # print(f"[DEBUG] Matches trouvés avec pattern principal: {matches}")
+        logger.debug(f"Matches trouvés avec pattern principal: {matches}")
 
         for description, date_str, amount_str in matches:
             try:
@@ -94,7 +69,7 @@ def extract_multi_operation_details(normalized_body):
                 description_clean = description.strip()
                 description_upper = description_clean.upper()
 
-                #  DÉFINITION DES CATÉGORIES DE MOTS-CLÉS
+                # DÉFINITION DES CATÉGORIES DE MOTS-CLÉS
                 bank_fees_keywords = ['ARRETE DE CPTE', 'FACTURATION', 'FACT PACK', 'COTISATION',
                                     'PACK', 'AGIOS', 'COMMISSION', 'FRAIS', 'COTISATION CARTE', 'FACTURATION CONNECT']
 
@@ -157,25 +132,21 @@ def extract_multi_operation_details(normalized_body):
                     'label': label
                 })
 
-
+                logger.debug(f"Opération ajoutée: {date_str} {amount} {label}")
 
             except Exception as e:
-
+                logger.warning(f"Erreur traitement opération {description}: {e}")
                 continue
 
         # Si on a trouvé des opérations avec le pattern principal, on retourne
         if operations:
-
             return operations
 
-    #  DÉTECTION FORMAT "ARRETE DE CPTE AU" SPÉCIFIQUE (fallback)
+    # DÉTECTION FORMAT "ARRETE DE CPTE AU" SPÉCIFIQUE (fallback)
     if "ARRETE DE CPTE AU" in normalized_body:
-
 
         pattern = r'ARRETE DE CPTE AU,(\d{2}/\d{2}/\d{4}),(-?\d+)XOF'
         matches = re.findall(pattern, normalized_body)
-
-
 
         for date_str, amount_str in matches:
             try:
@@ -188,15 +159,14 @@ def extract_multi_operation_details(normalized_body):
                     'label': "BANK FEES"
                 })
 
-                # print(f"[DEBUG] Opération spécifique ajoutée: {date_str} {amount} BANK FEES")
+                logger.debug(f"Opération spécifique ajoutée: {date_str} {amount} BANK FEES")
 
             except Exception as e:
-                # print(f"[DEBUG] Erreur traitement opération spécifique {amount_str} {date_str}: {e}")
+                logger.warning(f"Erreur traitement opération spécifique {amount_str} {date_str}: {e}")
                 continue
 
     # DÉTECTION MINI-RELEVÉS STANDARDS (autres formats)
     if "MINI-RELEVE COMPTE" in normalized_body or "MINI RELEVE COMPTE" in normalized_body:
-
 
         # Patterns pour mini-relevés standards
         mini_releve_patterns = [
@@ -210,26 +180,21 @@ def extract_multi_operation_details(normalized_body):
             pattern_matches = re.findall(pattern, normalized_body)
             if pattern_matches:
                 matches.extend(pattern_matches)
-
                 break
 
         # Secours : extraction manuelle si nécessaire
         if not matches:
-            # print("[DEBUG] Aucun pattern standard ne fonctionne, tentative d'extraction manuelle...")
+            logger.debug("Aucun pattern standard ne fonctionne, tentative d'extraction manuelle...")
 
             manual_pattern = r'([+-]?[\d\.,]+)\s*XOF\s*DU\s*[\d/]+'
             manual_matches = re.findall(manual_pattern, normalized_body)
 
-
             date_pattern = r'(\d{1,2}/\d{1,2}/\d{2,4})'
             dates = re.findall(date_pattern, normalized_body)
-
 
             for i, amount_str in enumerate(manual_matches):
                 if i < len(dates):
                     matches.append((amount_str, dates[i]))
-
-
 
         for amount_str, date_str in matches:
             try:
@@ -249,19 +214,20 @@ def extract_multi_operation_details(normalized_body):
                     'label': "BANK OPERATION"
                 })
 
-
+                logger.debug(f"Mini-relevé opération: {short_date} {amount}")
 
             except Exception as e:
-
+                logger.warning(f"Erreur traitement mini-relevé {amount_str}: {e}")
                 continue
 
-    #  4. DÉTECTION OPÉRATIONS MULTIPLES CLASSIQUES (format historique)
+    # 4. DÉTECTION OPÉRATIONS MULTIPLES CLASSIQUES (format historique)
     if not operations:
-        # print(f"[DEBUG] Tentative avec pattern classique: {normalized_body}")
+        logger.debug(f"Tentative avec pattern classique: {normalized_body[:100]}...")
+        
         operation_pattern = r'(\d{1,2}/\d{1,2})\s+([+-]\d+(?:\.\d+)?)\s+([A-Z0-9][^-+]*?)(?=\s+\d{1,2}/\d{1,2}\s+[+-]\d+|$)'
         matches = re.findall(operation_pattern, normalized_body)
 
-        # print(f"[DEBUG] Pattern classique - Matches trouvés: {matches}")
+        logger.debug(f"Pattern classique - Matches trouvés: {matches}")
 
         for date, amount_str, description in matches:
             amount = parse_currency_amount(amount_str)
@@ -318,7 +284,42 @@ def extract_multi_operation_details(normalized_body):
                 'label': label
             })
 
+            logger.debug(f"Opération classique: {date} {amount} {label}")
 
     return operations
 
+def process_multi_operation_sms(row, normalized_body, original_body, s3_key, s3_bucket):
+    """Traite un SMS contenant plusieurs opérations"""
+    
+    from processors.sms_processor import create_transaction_record
+    
+    operations = extract_multi_operation_details(normalized_body)
+    transactions = []
 
+    logger.info(f"Traitement de {len(operations)} opérations multi-opérations")
+
+    for op in operations:
+        # Déterminer le type de message basé sur le montant
+        if op['amount'] > 0:
+            tx_type = 'CREDIT'
+        else:
+            tx_type = 'DEBIT'
+
+        transaction = create_transaction_record(
+            row, 
+            normalized_body,
+            tx_type,
+            None,  # counterparty_name
+            None,  # counterparty_phone
+            op['amount'],
+            op['label'],
+            None,  # balance_after
+            'XOF',  # currency
+            original_body,
+            operation_date=op['date'],
+            s3_key=s3_key,
+            s3_bucket=s3_bucket
+        )
+        transactions.append(transaction)
+
+    return transactions

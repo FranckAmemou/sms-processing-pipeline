@@ -1,0 +1,29 @@
+# Environment
+.env
+.venv
+venv/
+env/
+
+# Credentials
+credentials/
+*.json
+*.key
+*.pem
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+pip-log.txt
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# # Logs
+# *.log
+# logs/

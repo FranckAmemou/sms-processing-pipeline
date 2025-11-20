@@ -23,3 +23,5 @@ def setup_logger(name=__name__, level=logging.INFO):
         logger.addHandler(console_handler)
     
     return logger
+# Alias pour la compatibilité avec les imports existants
+get_logger = setup_logger

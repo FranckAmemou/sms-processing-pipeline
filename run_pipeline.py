@@ -1,11 +1,14 @@
-
 """
 Script principal pour lancer le pipeline SMS
 """
 
 import sys
 import os
-from src.main import extract_transactions
+
+# Ajouter le répertoire src au PYTHONPATH
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'src'))
+
+from main import extract_transactions
 
 def main():
     print("🚀 Démarrage du pipeline de traitement SMS...")
